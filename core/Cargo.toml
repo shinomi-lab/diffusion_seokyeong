@@ -1,0 +1,10 @@
+[package]
+name = "core"
+version = "0.1.1"
+edition = "2024"
+
+[dependencies]
+approx = "0.5"
+graph-lib = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }

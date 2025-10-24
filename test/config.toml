@@ -1,0 +1,15 @@
+message_space = [
+{ internal_stimulus = 0.40, external_stimulus = 0.05}, 
+{ internal_stimulus = 0.35, external_stimulus = 0.10 },
+{ internal_stimulus = 0.30, external_stimulus = 0.15 }, 
+{ internal_stimulus = 0.25, external_stimulus = 0.20 },
+{ internal_stimulus = 0.20, external_stimulus = 0.25}, 
+] 
+num_rounds = 5
+receipt_probability = 0.5
+internal_parameters = { beta = 0.8, gamma = 0.6, initial_utility = -1.0 }
+external_parameters = { beta = 0.8, gamma = 0.6, initial_utility = -1.0 }
+graph = { path = "test/congress_network_graph.txt", directed = true, transposed = true }
+ip_sampling = { size = 16, seed = 0 }
+user_sampling = { size = 10, seed = 0 }
+diffusion_sample_size = 100

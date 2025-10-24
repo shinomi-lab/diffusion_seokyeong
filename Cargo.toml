@@ -1,0 +1,24 @@
+[package]
+name = "xa-promote"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+members = ["core", "runner", "util"]
+
+[workspace.dependencies]
+graph-lib = { git = "https://github.com/shinomi-lab/graph-lib.git", tag = "v0.6.1" }
+rand = { version = "0.9", features = ["small_rng"] }
+rand_distr = "0.5"
+serde = "1.0"
+serde_with = "3.12.0"
+core = { path = "core" }
+util = { path = "util" }
+anyhow = "1.0"
+clap = { version = "4.5.37", features = ["derive"] }
+
+[dependencies]
+runner = { path = "runner" }
+clap = { workspace = true }
+anyhow = { workspace = true }
+tokio = { version = "1", features = ["sync", "rt", "fs", "macros", "rt-multi-thread"] }

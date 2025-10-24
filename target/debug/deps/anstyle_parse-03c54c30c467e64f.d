@@ -1,0 +1,9 @@
+/Users/hongseokyeong/Desktop/xa-promote-up/target/debug/deps/anstyle_parse-03c54c30c467e64f.d: /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-parse-0.2.6/src/lib.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-parse-0.2.6/src/params.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-parse-0.2.6/src/state/mod.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-parse-0.2.6/src/state/definitions.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-parse-0.2.6/src/state/table.rs
+
+/Users/hongseokyeong/Desktop/xa-promote-up/target/debug/deps/libanstyle_parse-03c54c30c467e64f.rmeta: /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-parse-0.2.6/src/lib.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-parse-0.2.6/src/params.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-parse-0.2.6/src/state/mod.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-parse-0.2.6/src/state/definitions.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-parse-0.2.6/src/state/table.rs
+
+/Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-parse-0.2.6/src/lib.rs:
+/Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-parse-0.2.6/src/params.rs:
+/Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-parse-0.2.6/src/state/mod.rs:
+/Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-parse-0.2.6/src/state/definitions.rs:
+/Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-parse-0.2.6/src/state/table.rs:

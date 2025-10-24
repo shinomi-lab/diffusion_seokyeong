@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "analysis"
+		},
+		{
+			"path": "../xa-promote"
+		}
+	],
+	"settings": {}
+}

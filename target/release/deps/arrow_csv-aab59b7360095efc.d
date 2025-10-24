@@ -1,0 +1,10 @@
+/Users/hongseokyeong/Desktop/xa-promote-up/target/release/deps/arrow_csv-aab59b7360095efc.d: /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/lib.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/reader/mod.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/reader/records.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/writer.rs
+
+/Users/hongseokyeong/Desktop/xa-promote-up/target/release/deps/libarrow_csv-aab59b7360095efc.rlib: /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/lib.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/reader/mod.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/reader/records.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/writer.rs
+
+/Users/hongseokyeong/Desktop/xa-promote-up/target/release/deps/libarrow_csv-aab59b7360095efc.rmeta: /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/lib.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/reader/mod.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/reader/records.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/writer.rs
+
+/Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/lib.rs:
+/Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/reader/mod.rs:
+/Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/reader/records.rs:
+/Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-csv-56.2.0/src/writer.rs:

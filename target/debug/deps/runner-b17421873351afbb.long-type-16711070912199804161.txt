@@ -1,0 +1,1 @@
+<Vec<(&str, Arc<PrimitiveArray<UInt64Type>>)> as IntoIterator>::Item == (&str, Arc<dyn Array>)

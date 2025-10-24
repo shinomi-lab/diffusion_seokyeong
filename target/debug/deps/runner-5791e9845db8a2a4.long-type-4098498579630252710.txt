@@ -1,0 +1,1 @@
+std::iter::Map<std::vec::IntoIter<JobResult>, {closure@runner/src/brute_force.rs:178:18: 178:26}>

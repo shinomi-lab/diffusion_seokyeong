@@ -1,0 +1,9 @@
+/Users/hongseokyeong/Desktop/xa-promote-up/target/debug/deps/arrow_schema-e72a26ac2b4ad1bd.d: /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-schema-36.0.0/src/lib.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-schema-36.0.0/src/datatype.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-schema-36.0.0/src/error.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-schema-36.0.0/src/field.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-schema-36.0.0/src/schema.rs
+
+/Users/hongseokyeong/Desktop/xa-promote-up/target/debug/deps/libarrow_schema-e72a26ac2b4ad1bd.rmeta: /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-schema-36.0.0/src/lib.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-schema-36.0.0/src/datatype.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-schema-36.0.0/src/error.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-schema-36.0.0/src/field.rs /Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-schema-36.0.0/src/schema.rs
+
+/Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-schema-36.0.0/src/lib.rs:
+/Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-schema-36.0.0/src/datatype.rs:
+/Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-schema-36.0.0/src/error.rs:
+/Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-schema-36.0.0/src/field.rs:
+/Users/hongseokyeong/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-schema-36.0.0/src/schema.rs:
