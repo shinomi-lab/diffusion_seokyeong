@@ -1,13 +1,17 @@
 mod config;
 
 use std::{env, sync::Arc};
+use itertools::{izip};
 use arrow_array::{ArrayRef, Float64Array, RecordBatch, StringArray, UInt64Array};
-use itertools::{Itertools, izip};
+use arrow_schema::{DataType, Field, Schema, SchemaRef, ArrowError}; 
+type ArrowResult<T> = std::result::Result<T, ArrowError>;
+
 use parquet::{
     arrow::AsyncArrowWriter,
     basic::{Compression, ZstdLevel},
     file::properties::WriterProperties,
-    format::KeyValue,
+    file::metadata::KeyValue, // メタデータ書き込みに必要
+    errors::ParquetError, // エラーハンドリング用
 };
 use rand::{SeedableRng, rngs::SmallRng, seq::IteratorRandom};
 use tokio::{
@@ -112,140 +116,219 @@ impl JobManager {
         }
     }
 
-    async fn run(self,output_path: PathBuf, zstd_level: i32, version: &'static str) {
+ async fn run(self, output_path: PathBuf, zstd_level: i32, version: &'static str) {
         let mut rx = self.rx;
         let env = self.env.clone();
         let level = ZstdLevel::try_new(zstd_level).unwrap();
 
-        
         let output_dir = output_path.parent().unwrap_or_else(|| std::path::Path::new(""));
         let result_path = output_path.clone();
         let user_analysis_path = output_dir.join("user_analysis.parquet");
 
         let result_file = File::create(result_path).await.unwrap();
         let user_analysis_file = File::create(user_analysis_path).await.unwrap();
+
         // spawns the writer task
         let rx_handle = tokio::spawn(async move {
-            let mut results = Vec::new();
-            while let Some(result) = rx.recv().await {
-                results.push(result);
-            }
-            let (dm_id_col, ip_col, us_id_col, ms_col, xact_col) = results.clone()
-                .into_iter()
-                .map(|result| {
-                    (
-                        result.dm_id as u64,
-                        result.ip as u64,
-                        result.us_id as u64,
-                        env.message_space
-                            .index_to_string(result.msg_seq_index, env.num_rounds),
-                        result.mean_num_xact
-                    )
-                })
-                .multiunzip::<(Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>)>();
-
-            let batch = RecordBatch::try_from_iter(vec![
-                ("id", Arc::new(UInt64Array::from(dm_id_col)) as ArrayRef),
-                ("ip", Arc::new(UInt64Array::from(ip_col.clone())) as ArrayRef),
-                ("us_id", Arc::new(UInt64Array::from(us_id_col.clone())) as ArrayRef),
-                ("msg", Arc::new(StringArray::from(ms_col.clone())) as ArrayRef),
-                ("mean_num_xact", Arc::new(Float64Array::from(xact_col))),
-            ])
-            .unwrap();
             
-            let mut writer = AsyncArrowWriter::try_new(
+            // 1. 2つのファイルの「設計図」（スキーマ）を定義する
+            let result_schema = Arc::new(Schema::new(vec![
+                Field::new("id", DataType::UInt64, false),
+                Field::new("ip", DataType::UInt64, false),
+                Field::new("us_id", DataType::UInt64, false),
+                Field::new("msg", DataType::Utf8, false),
+                Field::new("mean_num_xact", DataType::Float64, false),
+            ]));
+
+            let user_analysis_schema = Arc::new(Schema::new(vec![
+                Field::new("ip", DataType::UInt64, false),
+                Field::new("us_id", DataType::UInt64, false),
+                Field::new("msg", DataType::Utf8, false),
+                Field::new("user_id", DataType::UInt64, false),
+                Field::new("num_xact_of_users", DataType::Float64, false),
+                Field::new("num_share_of_users", DataType::Float64, false),
+            ]));
+
+            // 2. 2つのファイルの「書き込み先」（ライター）を準備する
+            let props = Arc::new(
+                WriterProperties::builder()
+                    .set_compression(Compression::ZSTD(level))
+                    .build(),
+            );
+
+            let mut result_writer = AsyncArrowWriter::try_new(
                 result_file,
-                batch.schema(),
-                Some(
-                    WriterProperties::builder()
-                        .set_compression(Compression::ZSTD(level))
-                        .build(),
-                ),
+                result_schema.clone(),
+                Some((*props).clone()),
             )
             .unwrap();
-            writer.write(&batch).await.unwrap();
 
-            // appends version information into the metadata
-            writer.append_key_value_metadata(KeyValue::new(
-                "version_core".to_string(),
-                core::get_version().to_string(),
-            ));
-            writer.append_key_value_metadata(KeyValue::new(
-                "version_runner".to_string(),
-                env!("CARGO_PKG_VERSION").to_string(),
-            ));
-            writer.append_key_value_metadata(KeyValue::new(
-                "version".to_string(),
-                version.to_string(),
-            ));
-            writer.finish().await.unwrap();
+            let mut user_analysis_writer = AsyncArrowWriter::try_new(
+                user_analysis_file,
+                user_analysis_schema.clone(),
+                Some((*props).clone()),
+            )
+            .unwrap();
 
-            // --- `user_level_results.parquet` 用のベクター ---
-            // 1. 最終的な列となる、空のベクターを初期化
-            let mut ip_col: Vec<u64> = Vec::new();
-            let mut us_id_col: Vec<u64> = Vec::new();
-            let mut ms_col: Vec<String> = Vec::new();
-            let mut user_id_col: Vec<u64> = Vec::new();
-            let mut xact_users_col: Vec<f64> = Vec::new();
-            let mut share_col: Vec<f64> = Vec::new();
+            // 3. 2つのファイルに対応する「バケツ」（Vec）を初期化する
+            
+            // --- A. result.parquet用 (集計データ) ---
+            let mut result_dm_id_col: Vec<u64> = Vec::new();
+            let mut result_ip_col: Vec<u64> = Vec::new();
+            let mut result_us_id_col: Vec<u64> = Vec::new();
+            let mut result_msg_col: Vec<String> = Vec::new();
+            let mut result_mean_xact_col: Vec<f64> = Vec::new();
 
-        // 2. 全てのJobResultをループで処理
-            for result in results { // `result`は1つのシミュレーション結果
-                let msg_col =env.message_space
-                            .index_to_string(result.msg_seq_index, env.num_rounds);
-                // 内部のユーザーリストをループ処理
+            // --- B. user_analysis.parquet用 (詳細データ) ---
+            let mut user_ip_col: Vec<u64> = Vec::new();
+            let mut user_us_id_col: Vec<u64> = Vec::new();
+            let mut user_msg_col: Vec<String> = Vec::new();
+            let mut user_user_id_col: Vec<u64> = Vec::new();
+            let mut user_xact_col: Vec<f64> = Vec::new();
+            let mut user_share_col: Vec<f64> = Vec::new();
+
+            // 4. バッチ処理の単位（バケツの大きさ）を決める
+            let mut jobs_processed_in_batch = 0;
+            // 100ジョブごとにバケツを空にする（メモリ使用量に応じて調整可能）
+            // clapのdefault_valueから取得
+            const BATCH_SIZE: usize = 100; 
+
+            // 5. 全てのジョブをバッチで処理する (ストリーミング)
+            while let Some(result) = rx.recv().await {
+                
+                let msg_str = env.message_space.index_to_string(result.msg_seq_index, env.num_rounds);
+
+                // --- A. result.parquet用のバケツに「1行」追加 ---
+                result_dm_id_col.push(result.dm_id as u64);
+                result_ip_col.push(result.ip as u64);
+                result_us_id_col.push(result.us_id as u64);
+                result_msg_col.push(msg_str.clone());
+                result_mean_xact_col.push(result.mean_num_xact);
+
+                // --- B. user_analysis.parquet用のバケツに「N行」追加 ---
+                // (全ノードを書き込む)
                 for user_res in result.user_action_results {
-                    // ユーザー1人分の行を追加するたびに、
-                    // シミュレーション情報も「毎回」追加（複製）する
-                    // 「多」の方のデータを追加
-                    user_id_col.push(user_res.user_id as u64);
-                    xact_users_col.push(user_res.num_xact);
-                    share_col.push(user_res.num_share);
-                    ip_col.push(result.ip as u64);
-                    us_id_col.push(result.us_id as u64);
-                    ms_col.push(msg_col.clone()); // 文字列はcloneが必要
+                    if user_res.num_xact == 0.0{
+                        continue;
+                    }
+                    else{
+                    user_ip_col.push(result.ip as u64);
+                    user_us_id_col.push(result.us_id as u64);
+                    user_msg_col.push(msg_str.clone());
+                    user_user_id_col.push(user_res.user_id as u64);
+                    user_xact_col.push(user_res.num_xact);
+                    user_share_col.push(user_res.num_share);
+                }
+            }
+                
+                jobs_processed_in_batch += 1;
+
+                // --- C. バケツが一杯になったかチェック ---
+                if jobs_processed_in_batch >= BATCH_SIZE {
+                    // println!("Writing batch ({} jobs)...", jobs_processed_in_batch);
+                    
+                    // --- Aのバケツをファイルに書き込む ---
+                    let result_batch = RecordBatch::try_new(
+                        result_schema.clone(),
+                        vec![
+                            Arc::new(UInt64Array::from(result_dm_id_col.clone())),
+                            Arc::new(UInt64Array::from(result_ip_col.clone())),
+                            Arc::new(UInt64Array::from(result_us_id_col.clone())),
+                            Arc::new(StringArray::from(result_msg_col.clone())),
+                            Arc::new(Float64Array::from(result_mean_xact_col.clone())),
+                        ],
+                    ).unwrap();
+                    result_writer.write(&result_batch).await.unwrap();
+
+                    // ★★★ Aのバケツをクリアする ★★★
+                    result_dm_id_col.clear();
+                    result_ip_col.clear();
+                    result_us_id_col.clear();
+                    result_msg_col.clear();
+                    result_mean_xact_col.clear();
+
+                    // --- Bのバケツをファイルに書き込む ---
+                    let user_analysis_batch = RecordBatch::try_new(
+                        user_analysis_schema.clone(),
+                        vec![
+                            Arc::new(UInt64Array::from(user_ip_col.clone())),
+                            Arc::new(UInt64Array::from(user_us_id_col.clone())),
+                            Arc::new(StringArray::from(user_msg_col.clone())),
+                            Arc::new(UInt64Array::from(user_user_id_col.clone())),
+                            Arc::new(Float64Array::from(user_xact_col.clone())),
+                            Arc::new(Float64Array::from(user_share_col.clone())),
+                        ],
+                    ).unwrap();
+                    user_analysis_writer.write(&user_analysis_batch).await.unwrap();
+
+                    // ★★★ Bのバケツをクリアする ★★★
+                    user_ip_col.clear();
+                    user_us_id_col.clear();
+                    user_msg_col.clear();
+                    user_user_id_col.clear();
+                    user_xact_col.clear();
+                    user_share_col.clear();
+
+                    jobs_processed_in_batch = 0;
+                    println!("Batch written, memory cleared. Processing next batch...");
                 }
             }
 
-            // このループが終わると、全ての `_col` ベクターは
-            // 「全ユーザーの総数」と等しい、同じ長さになります。
-            let batch2 = RecordBatch::try_from_iter(vec![
-                ("ip", Arc::new(UInt64Array::from(ip_col.clone())) as ArrayRef),
-                ("us_id", Arc::new(UInt64Array::from(us_id_col.clone())) as ArrayRef),
-                ("msg", Arc::new(StringArray::from(ms_col.clone())) as ArrayRef),
-                ("user_id", Arc::new(UInt64Array::from(user_id_col)) as ArrayRef),
-                ("num_xact_of_users", Arc::new(Float64Array::from(xact_users_col)) as ArrayRef),
-                ("num_share_of_users", Arc::new(Float64Array::from(share_col)) as ArrayRef),
-            ]).expect("Failed to create RecordBatch from flattened data");
+            // 6. 最後のバッチ（BATCH_SIZE未満の残り）を書き込む
+            if !result_dm_id_col.is_empty() {
+                println!("Writing final batch...");
+                // Aのバケツ（残り）を書き込む
+                let result_batch = RecordBatch::try_new(
+                    result_schema.clone(),
+                    vec![
+                        Arc::new(UInt64Array::from(result_dm_id_col)), // clone不要
+                        Arc::new(UInt64Array::from(result_ip_col)),
+                        Arc::new(UInt64Array::from(result_us_id_col)),
+                        Arc::new(StringArray::from(result_msg_col)),
+                        Arc::new(Float64Array::from(result_mean_xact_col)),
+                    ],
+                ).unwrap();
+                result_writer.write(&result_batch).await.unwrap();
 
+                // Bのバケツ（残り）を書き込む
+                let user_analysis_batch = RecordBatch::try_new(
+                    user_analysis_schema.clone(),
+                    vec![
+                        Arc::new(UInt64Array::from(user_ip_col)), // clone不要
+                        Arc::new(UInt64Array::from(user_us_id_col)),
+                        Arc::new(StringArray::from(user_msg_col)),
+                        Arc::new(UInt64Array::from(user_user_id_col)),
+                        Arc::new(Float64Array::from(user_xact_col)),
+                        Arc::new(Float64Array::from(user_share_col)),
+                    ],
+                ).unwrap();
+                user_analysis_writer.write(&user_analysis_batch).await.unwrap();
+            }
 
-            let mut writer2 = AsyncArrowWriter::try_new(
-                user_analysis_file,
-                batch2.schema(),
-                Some(
-                    WriterProperties::builder()
-                        .set_compression(Compression::ZSTD(level))
-                        .build(),
-                ),
-            )
-            .unwrap();
-            writer2.write(&batch2).await.unwrap();
+            // 7. メタデータを追加し、全てのファイルライターを閉じる
+            let metadata = vec![
+                // 3. Note that the value field is an Option<String>
+                KeyValue::new("version_core".to_string(), Some(core::get_version().to_string())),
+                KeyValue::new("version_runner".to_string(), Some(env!("CARGO_PKG_VERSION").to_string())),
+                KeyValue::new("version".to_string(), Some(version.to_string())),
+            ];
 
-            // appends version information into the metadata for the second file
-            writer2.append_key_value_metadata(KeyValue::new(
-                "version_core".to_string(),
-                core::get_version().to_string(),
-            ));
-            writer2.append_key_value_metadata(KeyValue::new(
-                "version_runner".to_string(),
-                env!("CARGO_PKG_VERSION").to_string(),
-            ));
-            writer2.append_key_value_metadata(KeyValue::new(
-                "version".to_string(),
-                version.to_string(),
-            ));
-            writer2.finish().await.unwrap();
+            for kv in metadata.iter() {
+            result_writer.append_key_value_metadata(kv.clone());
+            }
+            result_writer.finish().await.unwrap();
+
+           for kv in metadata {
+            user_analysis_writer.append_key_value_metadata(kv);
+    }
+            user_analysis_writer.finish().await.unwrap();
+
+            println!("All batches written successfully.");
+            
+            // try_join! のためにResultを返す
+            Ok::<(), ParquetError>(())
         });
+
 
         // spawns the job tasks
         let tx_handle = tokio::spawn(async move {
