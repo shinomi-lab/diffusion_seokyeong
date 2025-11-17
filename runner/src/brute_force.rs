@@ -208,7 +208,7 @@ impl JobManager {
                 // --- B. user_analysis.parquet用のバケツに「N行」追加 ---
                 // (全ノードを書き込む)
                 for user_res in result.user_action_results {
-                    if user_res.num_xact == 0.0{
+                    if user_res.num_xact == 0.0 && user_res.num_share == 0.0{
                         continue;
                     }
                     else{
