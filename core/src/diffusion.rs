@@ -5,6 +5,7 @@ use rand::Rng;
 
 use crate::{message::Message, user::UserState};
 
+use std::collections::VecDeque;
 #[allow(dead_code)]
 pub struct DiffusionResult {
     pub num_xact: usize,
@@ -141,4 +142,24 @@ pub fn monte_carlo_average<M: Borrow<Message>, R: Rng>(
         num_share_of_users: result.num_share_of_users.iter().map(|&x| x as f64 / sample_size as f64).collect(),
         num_xact_of_users: result.num_xact_of_users.iter().map(|&x| x as f64 / sample_size as f64).collect(),
     }
+}
+
+/// IPから全ユーザーまでの最短距離（ホップ数）をBFSで計算
+pub fn shortest_distances_from(graph: &GraphB, ip: usize) -> Vec<Option<usize>> {
+    let n = graph.node_count();
+    let mut dist = vec![None; n];
+    dist[ip] = Some(0);
+
+    let mut queue: VecDeque<usize> = VecDeque::with_capacity(n / 2);
+    queue.push_back(ip);
+
+    while let Some(u) = queue.pop_front() {
+        for &v in graph.successors(u) {
+            if dist[v].is_none() {
+                dist[v] = Some(dist[u].unwrap() + 1);
+                queue.push_back(v);
+            }
+        }
+    }
+    dist
 }
