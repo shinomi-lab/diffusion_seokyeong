@@ -20,7 +20,7 @@ use tokio::{
     try_join,
 };
 
-use core::{diffusion::{monte_carlo_average, Aggregator}, message::MessageSpace, user::UserState};
+use core::{diffusion::{monte_carlo_average,shortest_distances_from, Aggregator}, message::MessageSpace, user::UserState};
 use graph_lib::prelude::{Graph, GraphB};
 use util::RngSampling;
 
@@ -147,6 +147,7 @@ impl JobManager {
                 Field::new("user_id", DataType::UInt64, false),
                 Field::new("num_xact_of_users", DataType::Float64, false),
                 Field::new("num_share_of_users", DataType::Float64, false),
+                Field::new("distance_from_ip", DataType::UInt64, true),
             ]));
 
             // 2. 2つのファイルの「書き込み先」（ライター）を準備する
@@ -186,6 +187,7 @@ impl JobManager {
             let mut user_user_id_col: Vec<u64> = Vec::new();
             let mut user_xact_col: Vec<f64> = Vec::new();
             let mut user_share_col: Vec<f64> = Vec::new();
+            let mut user_distance_col: Vec<Option<u64>> = Vec::new();
 
             // 4. バッチ処理の単位（バケツの大きさ）を決める
             let mut jobs_processed_in_batch = 0;
@@ -218,6 +220,7 @@ impl JobManager {
                     user_user_id_col.push(user_res.user_id as u64);
                     user_xact_col.push(user_res.num_xact);
                     user_share_col.push(user_res.num_share);
+                    user_distance_col.push(user_res.distance_from_ip.map(|d| d as u64));
                 }
             }
                 
@@ -257,6 +260,7 @@ impl JobManager {
                             Arc::new(UInt64Array::from(user_user_id_col.clone())),
                             Arc::new(Float64Array::from(user_xact_col.clone())),
                             Arc::new(Float64Array::from(user_share_col.clone())),
+                            Arc::new(UInt64Array::from(user_distance_col.clone())),
                         ],
                     ).unwrap();
                     user_analysis_writer.write(&user_analysis_batch).await.unwrap();
@@ -268,6 +272,7 @@ impl JobManager {
                     user_user_id_col.clear();
                     user_xact_col.clear();
                     user_share_col.clear();
+                    user_distance_col.clear();
 
                     jobs_processed_in_batch = 0;
                     println!("Batch written, memory cleared. Processing next batch...");
@@ -300,6 +305,7 @@ impl JobManager {
                         Arc::new(UInt64Array::from(user_user_id_col)),
                         Arc::new(Float64Array::from(user_xact_col)),
                         Arc::new(Float64Array::from(user_share_col)),
+                        Arc::new(UInt64Array::from(user_distance_col.clone())), // clone必要 (Option<u64>はUInt64Arrayに直接変換できないため)
                     ],
                 ).unwrap();
                 user_analysis_writer.write(&user_analysis_batch).await.unwrap();
@@ -415,6 +421,7 @@ struct UserActionResult {
     num_share: f64,
     num_xact: f64,
     user_id: usize,
+    distance_from_ip: Option<usize>,
 
 }
 #[derive(Debug, Clone)]
@@ -442,6 +449,7 @@ impl Job {
             self.diffusion_sample_size,
             &mut self.rng,
         );
+        let distances = shortest_distances_from(&self.graph, self.model.ip);
         let user_action_results: Vec<UserActionResult> = result.num_xact_of_users.iter()
             .enumerate()
             .zip(result.num_share_of_users.iter())
@@ -450,6 +458,7 @@ impl Job {
                     user_id,
                     num_xact: *num_xact,
                     num_share: *num_share,
+                    distance_from_ip: distances[user_id],
                 }
             })
             .collect();
