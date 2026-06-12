@@ -47,7 +47,6 @@ impl MessageSpace {
             msgs_ids[j] = i;
             code[j] = char::from_digit(i as u32, 16).unwrap();
         }
-        msgs_ids.reverse();
         (
             msgs_ids.into_iter().map(|id| self.from_id(id)).collect(),
             String::from_iter(code),
