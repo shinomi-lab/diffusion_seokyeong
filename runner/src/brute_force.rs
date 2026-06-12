@@ -299,7 +299,6 @@ impl JobManager {
             }
             user_analysis_writer.finish().await.unwrap();
 
-            println!("All {} jobs written in {:?}.", total_jobs, started.elapsed());
             Ok::<(), ParquetError>(())
         });
 
@@ -323,7 +322,6 @@ impl JobManager {
                 .iter()
                 .map(|&ip| (ip, Arc::new(shortest_distances_from(&self.env.graph, ip))))
                 .collect();
-            println!("Precomputed BFS distances for {} IP nodes.", distances_by_ip.len());
 
             let mut rng = SmallRng::seed_from_u64(self.env.diffusion_seed);
             let num_seqs = self.env.message_space.seq_size(self.env.num_rounds);
@@ -476,14 +474,14 @@ pub struct MyArgs {
 }
 
 pub async fn start(args: MyArgs, version: &'static str) -> anyhow::Result<()> {
+    let t = std::time::Instant::now();
     let buf = fs::read_to_string(args.config_path).await?;
     let config = toml::from_str(&buf)?;
     let env = Environment::from_config(config);
 
     // channel capacity は並列ジョブ数に余裕を持たせ、batch flush 単位は row_buffer_size に統一
     let manager = JobManager::new(env, args.max_job_size, args.max_job_size.max(args.row_buffer_size));
-    manager
-        .run(args.output_path, args.zstd_level, args.row_buffer_size, version)
-        .await;
+    manager.run(args.output_path, args.zstd_level, args.row_buffer_size, version).await;
+    println!("総実行時間: {:?}", t.elapsed());
     Ok(())
 }
