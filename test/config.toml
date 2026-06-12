@@ -8,7 +8,7 @@ num_rounds = 5
 receipt_probability = 0.5
 internal_parameters = { beta = 0.8, gamma = 0.6, initial_utility = -1.0 }
 external_parameters = { beta = 0.8, gamma = 0.6, initial_utility = -1.0 }
-graph = { path = "test/twitter_dataset.txt", directed = true, transposed = true }
-ip_sampling = { size = 10, seed = 0 }
-user_sampling = { size = 16, seed = 0 }
+graph = { path = "ENGB_edges.csv", directed = true, transposed = true,format="csv"}
+ip_sampling = { size = 16, seed = 0 }
+user_sampling = { size = 32, seed = 0 }
 diffusion_sample_size = 100
