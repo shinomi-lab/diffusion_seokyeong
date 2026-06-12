@@ -26,11 +26,32 @@ impl RngSampling {
     }
 }
 
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum GraphFormat {
+    #[default]
+    EdgeList,
+    Csv,
+    Tsv,
+}
+
+impl From<&GraphFormat> for graph_lib::io::DataFormat {
+    fn from(f: &GraphFormat) -> Self {
+        match f {
+            GraphFormat::EdgeList => graph_lib::io::DataFormat::EdgeList,
+            GraphFormat::Csv => graph_lib::io::DataFormat::CSV,
+            GraphFormat::Tsv => graph_lib::io::DataFormat::TSV,
+        }
+    }
+}
+
 #[derive(Deserialize)]
 pub struct GraphConfig {
     path: PathBuf,
     directed: bool,
     transposed: bool,
+    #[serde(default)] // 省略時は edgelist
+    format: GraphFormat,
 }
 
 impl TryFrom<GraphConfig> for GraphB {
@@ -40,7 +61,7 @@ impl TryFrom<GraphConfig> for GraphB {
         let builder = graph_lib::io::ParseBuilder::new(
             File::open(&value.path)
                 .expect(&format!("{} is not found.", &value.path.to_string_lossy())),
-            graph_lib::io::DataFormat::EdgeList,
+            (&value.format).into(),
             ParseOption {
                 transposed: value.transposed,
                 ..ParseOption::default()
