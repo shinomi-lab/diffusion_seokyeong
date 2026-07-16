@@ -8,7 +8,9 @@ num_rounds = 5
 receipt_probability = 0.5
 internal_parameters = { beta = 0.8, gamma = 0.6, initial_utility = -1.0 }
 external_parameters = { beta = 0.8, gamma = 0.6, initial_utility = -1.0 }
-graph = { path = "ENGB_edges.csv", directed = true, transposed = true,format="csv"}
+graph = { path = "test/twitter_dataset.txt", directed = true, transposed = true,format="edgelist"}
 ip_sampling = { size = 16, seed = 0 }
 user_sampling = { size = 32, seed = 0 }
 diffusion_sample_size = 100
+output_user_analysis = false
+ip_indices = [53723, 1061, 36640, 53875, 3785, 37542, 15229, 5253, 43519, 1237]
