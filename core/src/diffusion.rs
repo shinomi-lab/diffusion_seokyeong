@@ -83,8 +83,10 @@ pub fn diffuse<'a, R: Rng>(
 
 pub struct Aggregator<V> {
     pub mean_num_xact: V,
+    pub mean_num_share: V,
     pub num_share_of_users: Vec<V>,
     pub num_xact_of_users: Vec<V>,
+    
 }
 
 pub fn multiple_diffuse<M: Borrow<Message>, R: Rng>(
@@ -108,6 +110,7 @@ pub fn multiple_diffuse<M: Borrow<Message>, R: Rng>(
             &mut result.num_xact_of_users,
         );
         result.mean_num_xact += res.num_xact;
+        result.mean_num_share+= res.num_share;
 
     }
 }
@@ -123,6 +126,7 @@ pub fn monte_carlo_average<M: Borrow<Message>, R: Rng>(
 ) -> Aggregator<f64> {
     let mut result = Aggregator::<usize> {
         mean_num_xact: 0,
+        mean_num_share: 0,
         num_share_of_users: vec![0; graph.node_count()],
         num_xact_of_users: vec![0; graph.node_count()],
     };
@@ -138,6 +142,7 @@ pub fn monte_carlo_average<M: Borrow<Message>, R: Rng>(
         );
     }
     Aggregator {
+        mean_num_share: result.mean_num_share as f64 / sample_size as f64,
         mean_num_xact: result.mean_num_xact as f64 / sample_size as f64,
         num_share_of_users: result.num_share_of_users.iter().map(|&x| x as f64 / sample_size as f64).collect(),
         num_xact_of_users: result.num_xact_of_users.iter().map(|&x| x as f64 / sample_size as f64).collect(),
