@@ -24,8 +24,14 @@ pub struct Config {
     pub num_rounds: u32,
     pub receipt_probability: f64,
     pub diffusion_sample_size: usize,
+    /// user_analysis.parquet を出力するか（省略時 true = 従来通り）
+    #[serde(default = "default_true")]
+    pub output_user_analysis: bool,
+        /// IP を固定指定する場合の index リスト（省略時 None = ランダム）
+    #[serde(default)]
+    pub ip_indices: Option<Vec<usize>>,
 }
-
+fn default_true() -> bool { true }
 /// gamma < beta
 #[derive(Deserialize)]
 pub struct DecisionParameters {
