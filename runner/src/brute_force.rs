@@ -39,6 +39,10 @@ struct Environment {
     diffusion_sample_size: usize,
     message_space: MessageSpace,
     diffusion_seed: u64,
+    // ★変更1: user_analysis.parquet を出力するかどうか（config.toml で指定）
+    output_user_analysis: bool,
+    // ★変更2: IP を固定リストで指定する場合（config.toml で指定、None ならランダム）
+    ip_indices: Option<Vec<usize>>,
 }
 
 impl Environment {
@@ -53,6 +57,8 @@ impl Environment {
             message_space,
             receipt_probability,
             diffusion_sample_size,
+            output_user_analysis,   // ★変更1
+            ip_indices,             // ★変更2
         }: Config,
     ) -> Self {
         Self {
@@ -67,6 +73,8 @@ impl Environment {
             diffusion_sample_size,
             message_space,
             diffusion_seed: 0,
+            output_user_analysis,   // ★変更1
+            ip_indices,             // ★変更2
         }
     }
 
@@ -134,7 +142,12 @@ impl JobManager {
         let user_analysis_path = output_dir.join("user_analysis.parquet");
 
         let result_file = File::create(result_path).await.unwrap();
-        let user_analysis_file = File::create(user_analysis_path).await.unwrap();
+        // ★変更1: user_analysis を出力しない設定なら、ファイル自体を作らない
+        let user_analysis_file = if env.output_user_analysis {
+            Some(File::create(user_analysis_path).await.unwrap())
+        } else {
+            None
+        };
 
         // ---- writer task ----
         let rx_handle = tokio::spawn(async move {
@@ -144,6 +157,8 @@ impl JobManager {
                 Field::new("us_id", DataType::UInt64, false),
                 Field::new("msg", DataType::Utf8, false),
                 Field::new("mean_num_xact", DataType::Float64, false),
+                // ★変更3: 内部行動の累積回数（メッセージ系列全体・モンテカルロ平均）
+                Field::new("mean_num_share", DataType::Float64, false),
             ]));
 
             let user_analysis_schema = Arc::new(Schema::new(vec![
@@ -169,12 +184,15 @@ impl JobManager {
             )
             .unwrap();
 
-            let mut user_analysis_writer = AsyncArrowWriter::try_new(
-                user_analysis_file,
-                user_analysis_schema.clone(),
-                Some((*props).clone()),
-            )
-            .unwrap();
+            // ★変更1: writer も Option 化（出力しないなら作らない）
+            let mut user_analysis_writer = user_analysis_file.map(|f| {
+                AsyncArrowWriter::try_new(
+                    f,
+                    user_analysis_schema.clone(),
+                    Some((*props).clone()),
+                )
+                .unwrap()
+            });
 
             // --- result.parquet 用バッファ ---
             let mut result_dm_id_col: Vec<u64> = Vec::new();
@@ -182,6 +200,8 @@ impl JobManager {
             let mut result_us_id_col: Vec<u64> = Vec::new();
             let mut result_msg_col: Vec<String> = Vec::new();
             let mut result_mean_xact_col: Vec<f64> = Vec::new();
+            // ★変更3: 内部行動の列バッファ
+            let mut result_mean_share_col: Vec<f64> = Vec::new();
 
             // --- user_analysis.parquet 用バッファ ---
             let mut user_ip_col: Vec<u64> = Vec::new();
@@ -204,8 +224,11 @@ impl JobManager {
                 result_us_id_col.push(result.us_id as u64);
                 result_msg_col.push(msg_str.clone());
                 result_mean_xact_col.push(result.mean_num_xact);
+                // ★変更3
+                result_mean_share_col.push(result.mean_num_share);
 
                 // user_action_results は compute 側で非ゼロのみに絞り込み済み
+                // （output_user_analysis=false のときは compute 側で空 Vec になっている）
                 for user_res in result.user_action_results {
                     user_ip_col.push(result.ip as u64);
                     user_us_id_col.push(result.us_id as u64);
@@ -228,23 +251,28 @@ impl JobManager {
                             Arc::new(UInt64Array::from(std::mem::take(&mut result_us_id_col))),
                             Arc::new(StringArray::from(std::mem::take(&mut result_msg_col))),
                             Arc::new(Float64Array::from(std::mem::take(&mut result_mean_xact_col))),
+                            // ★変更3
+                            Arc::new(Float64Array::from(std::mem::take(&mut result_mean_share_col))),
                         ],
                     ).unwrap();
                     result_writer.write(&result_batch).await.unwrap();
 
-                    let user_analysis_batch = RecordBatch::try_new(
-                        user_analysis_schema.clone(),
-                        vec![
-                            Arc::new(UInt64Array::from(std::mem::take(&mut user_ip_col))) as ArrayRef,
-                            Arc::new(UInt64Array::from(std::mem::take(&mut user_us_id_col))),
-                            Arc::new(StringArray::from(std::mem::take(&mut user_msg_col))),
-                            Arc::new(UInt64Array::from(std::mem::take(&mut user_user_id_col))),
-                            Arc::new(Float64Array::from(std::mem::take(&mut user_xact_col))),
-                            Arc::new(Float64Array::from(std::mem::take(&mut user_share_col))),
-                            Arc::new(UInt64Array::from(std::mem::take(&mut user_distance_col))),
-                        ],
-                    ).unwrap();
-                    user_analysis_writer.write(&user_analysis_batch).await.unwrap();
+                    // ★変更1: 出力する設定のときだけ user_analysis を書く
+                    if let Some(writer) = user_analysis_writer.as_mut() {
+                        let user_analysis_batch = RecordBatch::try_new(
+                            user_analysis_schema.clone(),
+                            vec![
+                                Arc::new(UInt64Array::from(std::mem::take(&mut user_ip_col))) as ArrayRef,
+                                Arc::new(UInt64Array::from(std::mem::take(&mut user_us_id_col))),
+                                Arc::new(StringArray::from(std::mem::take(&mut user_msg_col))),
+                                Arc::new(UInt64Array::from(std::mem::take(&mut user_user_id_col))),
+                                Arc::new(Float64Array::from(std::mem::take(&mut user_xact_col))),
+                                Arc::new(Float64Array::from(std::mem::take(&mut user_share_col))),
+                                Arc::new(UInt64Array::from(std::mem::take(&mut user_distance_col))),
+                            ],
+                        ).unwrap();
+                        writer.write(&user_analysis_batch).await.unwrap();
+                    }
 
                     jobs_processed_in_batch = 0;
                     println!(
@@ -266,23 +294,28 @@ impl JobManager {
                         Arc::new(UInt64Array::from(result_us_id_col)),
                         Arc::new(StringArray::from(result_msg_col)),
                         Arc::new(Float64Array::from(result_mean_xact_col)),
+                        // ★変更3
+                        Arc::new(Float64Array::from(result_mean_share_col)),
                     ],
                 ).unwrap();
                 result_writer.write(&result_batch).await.unwrap();
 
-                let user_analysis_batch = RecordBatch::try_new(
-                    user_analysis_schema.clone(),
-                    vec![
-                        Arc::new(UInt64Array::from(user_ip_col)) as ArrayRef,
-                        Arc::new(UInt64Array::from(user_us_id_col)),
-                        Arc::new(StringArray::from(user_msg_col)),
-                        Arc::new(UInt64Array::from(user_user_id_col)),
-                        Arc::new(Float64Array::from(user_xact_col)),
-                        Arc::new(Float64Array::from(user_share_col)),
-                        Arc::new(UInt64Array::from(user_distance_col)),
-                    ],
-                ).unwrap();
-                user_analysis_writer.write(&user_analysis_batch).await.unwrap();
+                // ★変更1
+                if let Some(writer) = user_analysis_writer.as_mut() {
+                    let user_analysis_batch = RecordBatch::try_new(
+                        user_analysis_schema.clone(),
+                        vec![
+                            Arc::new(UInt64Array::from(user_ip_col)) as ArrayRef,
+                            Arc::new(UInt64Array::from(user_us_id_col)),
+                            Arc::new(StringArray::from(user_msg_col)),
+                            Arc::new(UInt64Array::from(user_user_id_col)),
+                            Arc::new(Float64Array::from(user_xact_col)),
+                            Arc::new(Float64Array::from(user_share_col)),
+                            Arc::new(UInt64Array::from(user_distance_col)),
+                        ],
+                    ).unwrap();
+                    writer.write(&user_analysis_batch).await.unwrap();
+                }
             }
 
             let metadata = vec![
@@ -294,10 +327,13 @@ impl JobManager {
                 result_writer.append_key_value_metadata(kv.clone());
             }
             result_writer.finish().await.unwrap();
-            for kv in metadata {
-                user_analysis_writer.append_key_value_metadata(kv);
+            // ★変更1: writer があるときだけ finish
+            if let Some(mut writer) = user_analysis_writer {
+                for kv in metadata {
+                    writer.append_key_value_metadata(kv);
+                }
+                writer.finish().await.unwrap();
             }
-            user_analysis_writer.finish().await.unwrap();
 
             Ok::<(), ParquetError>(())
         });
@@ -312,10 +348,27 @@ impl JobManager {
                 .user_sampling
                 .sample_with(|rng| (SmallRng::from_rng(rng), SmallRng::from_rng(rng)));
 
-            let ips = self
-                .env
-                .ip_sampling
-                .custom(|rng, size| (0..self.env.num_nodes).choose_multiple(rng, size));
+            // ★変更2: config.toml に ip_indices があれば固定リストを使い、
+            //          なければ従来通りランダムサンプリングする
+            let ips: Vec<usize> = match &self.env.ip_indices {
+                Some(fixed) => {
+                    // 範囲チェック（範囲外の index があれば即座に分かるように panic）
+                    for &ip in fixed {
+                        assert!(
+                            ip < self.env.num_nodes,
+                            "ip_indices の {} は範囲外です (num_nodes = {})",
+                            ip,
+                            self.env.num_nodes
+                        );
+                    }
+                    println!("IP を固定リストで指定: {:?}", fixed);
+                    fixed.clone()
+                }
+                None => self
+                    .env
+                    .ip_sampling
+                    .custom(|rng, size| (0..self.env.num_nodes).choose_multiple(rng, size)),
+            };
 
             // IP ごとの最短距離を一度だけ計算してキャッシュする（従来は全ジョブで再計算していた）
             let distances_by_ip: HashMap<usize, Arc<Vec<Option<usize>>>> = ips
@@ -406,6 +459,8 @@ struct JobResult {
     us_id: usize,
     msg_seq_index: u64,
     mean_num_xact: f64,
+    // ★変更3: 内部行動の累積回数（系列全体・モンテカルロ平均）
+    mean_num_share: f64,
     pub user_action_results: Vec<UserActionResult>,
 }
 
@@ -425,20 +480,26 @@ impl Job {
             &mut self.rng,
         );
 
-        // 非ゼロのノードだけを残す（writer 側のフィルタを前倒し、channel ペイロードを削減）
-        let user_action_results: Vec<UserActionResult> = result
-            .num_xact_of_users
-            .iter()
-            .enumerate()
-            .zip(result.num_share_of_users.iter())
-            .filter(|&((_, &num_xact), &num_share)| num_xact != 0.0 || num_share != 0.0)
-            .map(|((user_id, &num_xact), &num_share)| UserActionResult {
-                user_id,
-                num_xact,
-                num_share,
-                distance_from_ip: self.distances[user_id],
-            })
-            .collect();
+        // ★変更1: user_analysis を出力しない設定なら、個人単位の集計自体をスキップ
+        //          （filter + collect のコストと channel ペイロードを削減 = 高速化）
+        let user_action_results: Vec<UserActionResult> = if env.output_user_analysis {
+            // 非ゼロのノードだけを残す（writer 側のフィルタを前倒し、channel ペイロードを削減）
+            result
+                .num_xact_of_users
+                .iter()
+                .enumerate()
+                .zip(result.num_share_of_users.iter())
+                .filter(|&((_, &num_xact), &num_share)| num_xact != 0.0 || num_share != 0.0)
+                .map(|((user_id, &num_xact), &num_share)| UserActionResult {
+                    user_id,
+                    num_xact,
+                    num_share,
+                    distance_from_ip: self.distances[user_id],
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
 
         let job_result = JobResult {
             dm_id: self.model.id,
@@ -446,6 +507,8 @@ impl Job {
             us_id: self.model.user_state_id,
             msg_seq_index: self.msg_seq_index,
             mean_num_xact: result.mean_num_xact,
+            // ★変更3
+            mean_num_share: result.mean_num_share,
             user_action_results,
         };
 
