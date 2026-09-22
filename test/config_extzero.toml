@@ -1,0 +1,20 @@
+# 条件A: 外部軸の差別化を最大化し、外部刺激ちょうど 0 のメッセージを置く
+#   内部軸: s̄_S = 0.125, δ_S = 0.6  （test/config.toml と同一）
+#   外部軸: s̄_X = 0.125, δ_X = 1.0  （m0 の外部刺激が 0 になる）
+# s(i) = s̄ * (1 + δ * z_i),  z = {1, 1/3, -1/3, -1}（外部軸は z' = -z）
+# s̄_X が baseline と同じ 0.125 なので、w の較正は baseline と完全に一致する。
+# 狙い: 「純粋なリーチ構築チャネル」と「予熱チャネル」を分離した場合の挙動を見る。
+message_space = [
+{ internal_stimulus = 0.20, external_stimulus = 0.0    },
+{ internal_stimulus = 0.15, external_stimulus = 0.0833 },
+{ internal_stimulus = 0.10, external_stimulus = 0.1667 },
+{ internal_stimulus = 0.05, external_stimulus = 0.25   },
+]
+num_rounds = 5
+receipt_probability = 0.5
+internal_parameters = { beta = 0.8, gamma = 0.6, initial_utility = -1.0 }
+external_parameters = { beta = 0.8, gamma = 0.6, initial_utility = -1.0 }
+graph = { path = "ENGB_edges.csv", directed = true, transposed = true, format = "csv" }
+ip_sampling = { size = 16, seed = 0 }
+user_sampling = { size = 32, seed = 0 }
+diffusion_sample_size = 100
