@@ -58,9 +58,15 @@ impl TryFrom<GraphConfig> for GraphB {
     type Error = io::Error;
 
     fn try_from(value: GraphConfig) -> Result<Self, Self::Error> {
+        // グラフが開けない場合は panic せず、どのパスで失敗したかを含む io::Error を返す。
+        let file = File::open(&value.path).map_err(|e| {
+            io::Error::new(
+                e.kind(),
+                format!("グラフファイル {} を開けません: {e}", value.path.display()),
+            )
+        })?;
         let builder = graph_lib::io::ParseBuilder::new(
-            File::open(&value.path)
-                .expect(&format!("{} is not found.", &value.path.to_string_lossy())),
+            file,
             (&value.format).into(),
             ParseOption {
                 transposed: value.transposed,
