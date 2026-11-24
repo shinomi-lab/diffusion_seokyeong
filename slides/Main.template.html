@@ -1,0 +1,107 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; }
+    a { color: #1f5f8f; } a:hover { color: #16455f; }
+  </style>
+</helmet>
+<div style="width: 1280px; height: 720px; box-sizing: border-box; padding: 20px 32px 16px; background: #ffffff; color: #1a1d21; font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic Medium', 'Yu Gothic', Meiryo, sans-serif; display: flex; flex-direction: column; gap: 10px; overflow: hidden;">
+
+  <div style="display: flex; align-items: baseline; gap: 14px; border-bottom: 2px solid #1a1d21; padding-bottom: 7px;">
+    <div style="font-size: 21px; font-weight: 700; letter-spacing: 0.01em;">4. 結果と考察（補足） ― なぜ「先に拡散・最後に行動」が効くのか</div>
+    <div style="font-size: 12.5px; color: #6b7278; font-weight: 600;">カスケードとオートマトンの視点</div>
+  </div>
+
+  <div style="background: #f2f4f3; padding: 8px 14px; font-size: 13px; line-height: 1.5;">
+    外部行動には <strong style="font-weight: 700;">① メッセージが届く（リーチ）</strong> と <strong style="font-weight: 700;">② 外部行動オートマトンの発火（uˣ &gt; 0）</strong> の両方が必要 ―
+    そして <strong style="font-weight: 700;">① を広げられるのは、先行ラウンドの内部行動（共有）だけ</strong>である。
+  </div>
+
+  <div style="display: flex; gap: 24px; align-items: flex-start;">
+
+    <div style="width: 740px; flex-shrink: 0;">
+<!--FIGURE-->
+    </div>
+
+    <div style="width: 452px; display: flex; flex-direction: column; gap: 11px;">
+
+      <div style="display: flex; gap: 9px; align-items: flex-start;">
+        <div style="width: 19px; height: 19px; flex-shrink: 0; border-radius: 50%; background: #2f8f5b; color: #ffffff; font-size: 11.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px;">1</div>
+        <div>
+          <div style="font-size: 13.5px; font-weight: 700; line-height: 1.35;">共有したノードだけが伝える ― 中継役の作り置き</div>
+          <div style="font-size: 12px; line-height: 1.6; color: #3c4349; margin-top: 3px;">受信のたびに uˢ を更新し、<strong style="font-weight: 700;">uˢ &gt; 0 になったノードは以後メッセージが届くだけで隣接ノードへ再共有する</strong>＝中継役になる。ラウンド 1–4 に m₀（sˢ=0.20）を重ねるほど中継役が増え、到達範囲＝外部行動の母数が広がる。</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 9px; align-items: flex-start;">
+        <div style="width: 19px; height: 19px; flex-shrink: 0; border-radius: 50%; background: #2f8f5b; color: #ffffff; font-size: 11.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px;">2</div>
+        <div>
+          <div style="font-size: 13.5px; font-weight: 700; line-height: 1.35;">効用はラウンドを越えて蓄積する</div>
+          <div style="font-size: 12px; line-height: 1.6; color: #3c4349; margin-top: 3px;">更新則 <span style="font-family: 'Hiragino Mincho ProN', Georgia, serif; font-style: italic;">u′ = w·u + (1−w)·s(m)</span> は状態を持ち越す。uˣ は負の初期値から始まり、正に達して初めて外部行動する（生涯 1 回）。m₀ の弱い外部刺激 sˣ=0.05 も 4 ラウンド積めば、<strong style="font-weight: 700;">uˣ を 0 の手前まで予熱</strong>する。</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 9px; align-items: flex-start;">
+        <div style="width: 19px; height: 19px; flex-shrink: 0; border-radius: 50%; background: #d9691f; color: #ffffff; font-size: 11.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px;">3</div>
+        <div>
+          <div style="font-size: 13.5px; font-weight: 700; line-height: 1.35;">最終ラウンドの m₃ が広い母数を一斉に変換する</div>
+          <div style="font-size: 12px; line-height: 1.6; color: #3c4349; margin-top: 3px;">中継網は残るので、sˢ の弱い m₃ でも既に共有状態のノードを伝って<strong style="font-weight: 700;">広い範囲へ届く</strong>。強い sˣ=0.20 で予熱済みの多数が同時に閾値を超える。外部行動は不可逆なので、<strong style="font-weight: 700;">母数が最大になる最後まで変換を遅らせるのが最適</strong>。</div>
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid #d9dde1; padding-top: 9px;">
+        <div style="font-size: 12px; font-weight: 700; margin-bottom: 5px;">順序を崩すと成り立たない</div>
+        <div style="display: grid; grid-template-columns: 104px 1fr 62px; gap: 5px 8px; font-size: 11px; line-height: 1.45; align-items: start;">
+          <div style="color: #6b7278; font-weight: 700;">系列</div>
+          <div style="color: #6b7278; font-weight: 700;">ネットワーク構造で起きること</div>
+          <div style="color: #6b7278; font-weight: 700;">外部行動</div>
+          <div style="grid-column: 1 / -1; height: 1px; background: #e6e9ec;"></div>
+          <div style="font-weight: 700;">30000（m₃ 先行）</div>
+          <div style="color: #3c4349;">中継網が未形成。m₃ は sˢ が弱く連鎖もすぐ止まる</div>
+          <div style="color: #d9691f; font-weight: 700;">伸びない</div>
+          <div style="grid-column: 1 / -1; height: 1px; background: #e6e9ec;"></div>
+          <div style="font-weight: 700;">00000（m₀ のみ）</div>
+          <div style="color: #3c4349;">リーチは最大だが、uˣ が閾値に届かない</div>
+          <div style="color: #d9691f; font-weight: 700;">0</div>
+          <div style="grid-column: 1 / -1; height: 1px; background: #e6e9ec;"></div>
+          <div style="font-weight: 700;">m₁・m₂ 中心</div>
+          <div style="color: #3c4349;">リーチ拡大も効用の予熱も中途半端</div>
+          <div style="color: #6b7278; font-weight: 700;">いずれも不十分</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="background: #23303c; color: #ffffff; padding: 9px 14px; display: flex; align-items: stretch; gap: 0;">
+    <div style="font-size: 11px; font-weight: 700; color: #8fb8a4; writing-mode: horizontal-tb; align-self: center; padding-right: 12px; border-right: 1px solid #3d4b58; margin-right: 12px; line-height: 1.3; flex-shrink: 0;">因果の<br>連鎖</div>
+    <div style="display: flex; align-items: center; gap: 7px; flex: 1;">
+      <div style="flex: 1.05; font-size: 10.5px; line-height: 1.4;">ラウンド 1–4 の m₀ で<br><strong style="font-weight: 700;">共有を促す</strong></div>
+      <div style="flex-shrink: 0; width: 0; height: 0; border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; border-left: 6px solid #7c8b98;"></div>
+      <div style="flex: 1.15; font-size: 10.5px; line-height: 1.4;"><strong style="font-weight: 700; color: #9fd9bb;">uˢ &gt; 0 のノード</strong><br>（中継役）が増える</div>
+      <div style="flex-shrink: 0; width: 0; height: 0; border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; border-left: 6px solid #7c8b98;"></div>
+      <div style="flex: 1.3; font-size: 10.5px; line-height: 1.4;"><strong style="font-weight: 700;">届くだけで隣へ再共有</strong><br>→ 到達範囲が広がる</div>
+      <div style="flex-shrink: 0; width: 0; height: 0; border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; border-left: 6px solid #7c8b98;"></div>
+      <div style="flex: 1.3; font-size: 10.5px; line-height: 1.4;">最終ラウンドの m₃ を<br><strong style="font-weight: 700;">多数のノードへ届けられる</strong></div>
+      <div style="flex-shrink: 0; width: 0; height: 0; border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; border-left: 6px solid #7c8b98;"></div>
+      <div style="flex: 1.3; font-size: 10.5px; line-height: 1.4;">高い sˣ=0.20 で uˣ を更新<br>→ <strong style="font-weight: 700; color: #f0a877;">一斉に閾値超え</strong></div>
+      <div style="flex-shrink: 0; width: 0; height: 0; border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; border-left: 6px solid #7c8b98;"></div>
+      <div style="flex: 0.95; font-size: 10.5px; line-height: 1.4;"><strong style="font-weight: 700; color: #f0a877;">外部行動者数<br>が急増</strong></div>
+    </div>
+  </div>
+
+  <div style="font-size: 12.5px; font-weight: 700; line-height: 1.45;">
+    中継役ノードを T−1 ＝ 4 ラウンドかけて広げ（build）、最終ラウンドで一括変換する（harvest）― これが OPT・RAM がそろって「前半 0 多め ＋ 末尾 3」型（00003 / 00013 / 00033）を選ぶ理由。
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

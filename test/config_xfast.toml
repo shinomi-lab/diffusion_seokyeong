@@ -1,0 +1,23 @@
+# 条件 X-fast: 内部軸を鈍く、外部軸を速く（軸非対称の反応性、X-slow の反転）
+#   message_space は baseline（test/config.toml）のまま変更しない（δ_S=δ_X=0.6, s̄_S=s̄_X=0.125）。
+#   内部軸: beta=1.4, gamma=1.05 → n_max = beta*T = 7.0（T=5）、alpha = gamma/(beta-gamma) = 3.0
+#   外部軸: beta=0.4, gamma=0.30 → n_max = 2.0、alpha = 3.0
+#   （n_max = beta*T = 最大必要ラウンド数、alpha = gamma/(beta-gamma) = 反応性分布の裾の重さ）
+# 狙い: 内部軸（リーチ構築）が遅く、外部軸（変換）は一撃で即決する状態を作る。X-slow の反転条件。
+#   予測: いつ外部行動促進メッセージ(m3)を打っても即座に変換できてしまうため、
+#   リーチ構築が追いつかず「内部先行→外部後置」という順序効果が縮小・消失するはず。
+#   X-slow と対で、どちらかが予測から外れれば「拡散多め→外部寄り」の因果説明が崩れる。
+message_space = [
+{ internal_stimulus = 0.20, external_stimulus = 0.05},
+{ internal_stimulus = 0.15, external_stimulus = 0.10},
+{ internal_stimulus = 0.10, external_stimulus = 0.15},
+{ internal_stimulus = 0.05, external_stimulus = 0.20},
+]
+num_rounds = 5
+receipt_probability = 0.5
+internal_parameters = { beta = 1.4, gamma = 1.05, initial_utility = -1.0 }
+external_parameters = { beta = 0.4, gamma = 0.30, initial_utility = -1.0 }
+graph = { path = "ENGB_edges.csv", directed = true, transposed = true, format = "csv" }
+ip_sampling = { size = 16, seed = 0 }
+user_sampling = { size = 32, seed = 0 }
+diffusion_sample_size = 100

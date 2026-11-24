@@ -1,0 +1,9 @@
+key,value
+ev_by_opt,982.1637027740478
+mean_of_opt_values,1220.27728515625
+ev_by_ram,1123.8395703125
+ev_by_urs,454.0354964256287
+ram ev / opt ev,1.1442487307750218
+urs ev / opt ev,0.46228087552333635
+ram ev / opt mean,0.9209706547709756
+urs ev / opt mean,0.3720756765274803

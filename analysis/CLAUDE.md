@@ -7,8 +7,13 @@
 > 前提: `analysis/` 配下に別実装（パッケージ等）があっても、この定義は
 > `twitter.ipynb` 単体を仕様とみなす。両者が食い違う場合、ここではノートブックを正とする。
 >
+> **更新ポリシー**: 新しい進捗・資料ができても、**Claude がこの md を自発的に更新しない**。
+> 更新はユーザーが直接依頼したときだけ行う。記述と現状のずれに気づいても、更新せず報告にとどめる。
+>
 > 参照の分担: このファイルは **統計処理の実装**。研究の背景・結果の数値・考察・発表資料
-> （要旨 / スライド / ポスター / 論文）の執筆はリポジトリルートの `../claude-research.md` を参照。
+> （要旨 / スライド / ポスター / 論文）の執筆は `../研究リソースとか/claude-research.md` を参照
+> （全体像と、作業別に読む資料のルーティング表がある）。
+> v0.2.0 スキーマ向けのスクリプト（`研究リソースとか/ext_analysis/`）は §8。
 
 ---
 
@@ -218,3 +223,42 @@ Rust シミュレータが総当たり探索で出力した parquet を読み、
   `mean_num_xact` が完全一致する複数 `msg` があると、どれが残るかは非決定的。
 - `user_analysis` を触る処理は LazyFrame のまま組み立て、`collect(engine="streaming")` は
   最後の 1 回。`scope="ram"` は必ず `collect` 前に `is_in` フィルタ。
+
+---
+
+## 8. v0.2.0 スキーマ向けスクリプト（`../研究リソースとか/ext_analysis/`）
+
+`twitter.ipynb`（v0.1.x、`user_analysis` 必須）とは別に、**v0.2.0 の出力**
+（`id, ip, us_id, msg, mean_num_xact, mean_num_share`）を直接読むスクリプトがある。
+ノートブックの仕様（§1〜§7）は変えていない。
+
+**トラックの対応**: track1（OPT/RAM/URS）は §3 と同一定義。track2 は **aggregate 粒度のみ**
+（`mean_num_share` を使う）。individual 粒度は v0.2.0 では算出不可。
+
+| スクリプト | 役割 | 入力 → 出力 |
+|---|---|---|
+| `analyze_ext.py` | 1 条件ぶんの結果資料を生成（`結果.pdf` と同じ手順）。**`CONDITIONS` 辞書に 1 条件足すと増やせる** | `<repo>/twitter_{cond}`（parquet、拡張子なし）→ `{cond}_結果/{tables,figures}/`、`twitter_{cond}_結果.pdf` |
+| `compare_delta_x.py` | δ_X の 3 条件（baseline 0.6 / extzero 1.0 / extneg 1.4）の横断比較。`analyze_ext.py` の関数・定数を import | → `delta_x_横断比較/`、`delta_x_横断比較.pdf` |
+| `pareto_profile.py` | 反応性パレート分布（FAST β=0.4,γ=0.30 / baseline / SLOW β=1.4,γ=1.05）の速さ・裾・層別割合。閉形式 `P(n≤x)=(x/n_max)^α` をモンテカルロで照合 | → `ext_analysis/figures/pareto_{fast,slow,compare}.png` |
+
+`analyze_ext.py` の要点:
+- baseline は**記録値のみ**（`BASE` / `BASE_RAM` / `BASE_OPT`、`結果.pdf`・`claude-research.md` 由来）。全 1024 系列の分布は手元に無い。
+- **C1〜C7**（既発表の主張との照合）: C1 OPT・RAM とも「前半 m0 多め＋末尾 m3」型が上位／C2 共通系列に `00003`／
+  C3 RAM 単一で対 OPT 約 93%／C4 RAM 上位 10 平均で約 80%／C5 外部行動者数が増加（×1.4〜×3.8）／
+  C6 外部/内部比率が向上（+17.0〜+33.7pt）／C7 上位系列は m0 の割合が多め。
+  判定は ○/△/×（C1 は baseline 自身の本数 RAM 7/10・OPT 8/10 **以上**、C7 は m0 が m1〜m3 のどれよりも多いか）。
+- 参照系列 `REF = "00003"` の**1 ポジション差し替え対比**: 出力が T ラウンド合計のみでラウンド別内訳が無いため、
+  ヒートマップのように平均を挟まず、他 4 桁を固定して 1 桁だけ m0〜m3 に差し替えた値を比べる。
+
+**X-slow / X-fast の分析**（`../研究リソースとか/xslow_xfast_engb/`、`xslow_xfast_統合まとめ/`）:
+他 PC で実行・分析したもので、**スクリプトはリポジトリに無く成果物（CSV / PDF / 図）のみ**。
+`*_eval.csv` は §3 の `eval_df` の 8 指標、`*_ram_top10.csv` / `*_opt_top10.csv` は RAM 上位・OPT argmax 頻度
+（OPT 側に退化系列 `00000` / `33333` を示す `degenerate` 列あり）、`*_aggregate.csv` は all / ram の xact・share・比率、
+`comparison.csv` は 3 条件の横断、`merged_metrics.csv` は ENGB と Congress の統合。統合で使う派生指標:
+- **RAM 1位 ÷ URS**: 系列を選ぶことによる相対的な上積み。条件間の比較は baseline を 1 とした比で行う。
+- **RAM 1位 ÷ OPT 平均値**（`ram ev / opt mean`）: 事前知識なしの固定系列が理論上限にどれだけ近いか。
+- **適用倍率**（ram / all）: RAM 上位 10 の平均 ÷ 全 1024 系列の平均。
+- **xact/share 比**は「外部行動が多いか」ではなく、**分母の share が小さいと大きくなる**（X-fast で 9 前後）。
+  内部行動が起きているかの指標として読む。
+- ENGB は無向（`directed=false`）、Congress は有向。向きだけで URS が桁違いに変わる（Rust 側 `CLAUDE.md` §6）ので、
+  過去の有向結果とは比較しない。
