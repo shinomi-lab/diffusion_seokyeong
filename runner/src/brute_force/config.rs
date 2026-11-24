@@ -9,6 +9,7 @@ use util::{GraphConfig, RngSampling};
 use core::{
     decision::DecisionBase,
     message::{Message, MessageSpace},
+    recommend::RecParams,
 };
 
 #[serde_as]
@@ -25,6 +26,9 @@ pub struct Config {
     pub num_rounds: u32,
     pub receipt_probability: f64,
     pub diffusion_sample_size: usize,
+    /// 推薦チャネル（Rモデル）。表が無ければ既定値（ε = 0 で推薦なし）。
+    #[serde(default)]
+    pub recommender: RecParams,
 }
 
 impl Config {
@@ -73,6 +77,23 @@ impl Config {
             self.ip_sampling.size,
             num_nodes
         );
+
+        let r = &self.recommender;
+        ensure!(r.eps >= 0.0, "recommender.eps は 0 以上である必要があります (実際: {})", r.eps);
+        for (name, v) in [("delta", r.delta), ("mu", r.mu)] {
+            ensure!(
+                (0.0..=1.0).contains(&v),
+                "recommender.{name} は [0, 1] である必要があります (実際: {v})"
+            );
+        }
+        ensure!(r.tau >= 0.0, "recommender.tau は 0 以上である必要があります (実際: {})", r.tau);
+        ensure!(
+            r.phi_max >= r.tau,
+            "recommender.phi_max は tau 以上である必要があります (phi_max = {}, tau = {})",
+            r.phi_max,
+            r.tau
+        );
+        ensure!(r.k > 0.0, "recommender.k は正である必要があります (実際: {})", r.k);
 
         // seq_size() が計算する L^T が u64 に収まること。
         let l = self.message_space.len() as f64;
@@ -238,5 +259,34 @@ external_parameters = { beta = 0.8, gamma = 0.6, initial_utility = -1.0 }
         let config = toml::from_str::<Config>(&toml).unwrap();
         let err = config.validate().unwrap_err();
         assert!(format!("{err:#}").contains("receipt_probability"), "{err:#}");
+    }
+
+    /// S-07: `[recommender]` が無ければ既定値（推薦なし）で読める。
+    #[test]
+    fn recommender_defaults_to_off() {
+        let config = parse(OK_PARAMS).unwrap();
+        assert_eq!(config.recommender, RecParams::default());
+        assert!(!config.recommender.is_on());
+    }
+
+    /// S-07: 一部のキーだけ書けば、残りは既定値になる。範囲外の値は検証で弾く。
+    #[test]
+    fn recommender_partial_table_and_range_check() {
+        let extra = format!("{OK_PARAMS}\n[recommender]\neps = 1.0\ntau = 1.0\n");
+        let config = parse(&extra).unwrap();
+        assert!(config.recommender.is_on());
+        assert_eq!(config.recommender.phi_max, RecParams::default().phi_max);
+        config.validate().expect("検証を通るはず");
+
+        let bad = format!("{OK_PARAMS}\n[recommender]\neps = 1.0\ndelta = 1.5\n");
+        let err = parse(&bad).unwrap().validate().unwrap_err();
+        assert!(format!("{err:#}").contains("recommender.delta"), "{err:#}");
+    }
+
+    /// S-07: 綴りを間違えたキーは黙って無視せずに弾く。
+    #[test]
+    fn recommender_rejects_unknown_key() {
+        let bad = format!("{OK_PARAMS}\n[recommender]\nepsilon = 1.0\n");
+        assert!(parse(&bad).is_err());
     }
 }

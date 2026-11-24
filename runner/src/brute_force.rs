@@ -24,6 +24,7 @@ use tokio::{
 use core::{
     diffusion::{Workspace, monte_carlo_average},
     message::{Message, MessageSpace},
+    recommend::{RecParams, Recommender},
     user::UserState,
 };
 use graph_lib::prelude::{Graph, GraphB};
@@ -43,6 +44,7 @@ struct Environment {
     diffusion_sample_size: usize,
     message_space: MessageSpace,
     diffusion_seed: u64,
+    recommender: RecParams,
 }
 
 impl Environment {
@@ -57,6 +59,7 @@ impl Environment {
             message_space,
             receipt_probability,
             diffusion_sample_size,
+            recommender,
         }: Config,
     ) -> Self {
         Self {
@@ -71,6 +74,7 @@ impl Environment {
             diffusion_sample_size,
             message_space,
             diffusion_seed: 0,
+            recommender,
         }
     }
 
@@ -150,6 +154,8 @@ impl JobManager {
                 Field::new("msg", DataType::Utf8, false),
                 Field::new("mean_num_xact", DataType::Float64, false),
                 Field::new("mean_num_share", DataType::Float64, false),
+                Field::new("mean_num_rec_rcvd", DataType::Float64, false),
+                Field::new("mean_num_xact_rec", DataType::Float64, false),
             ]));
 
             let props = Arc::new(
@@ -168,6 +174,8 @@ impl JobManager {
             let mut msg_col: Vec<String> = Vec::new();
             let mut mean_xact_col: Vec<f64> = Vec::new();
             let mut mean_share_col: Vec<f64> = Vec::new();
+            let mut mean_rec_rcvd_col: Vec<f64> = Vec::new();
+            let mut mean_xact_rec_col: Vec<f64> = Vec::new();
 
             let mut rows_in_batch = 0usize;
             let mut total_rows = 0usize;
@@ -183,6 +191,8 @@ impl JobManager {
                             Arc::new(StringArray::from(std::mem::take(&mut msg_col))),
                             Arc::new(Float64Array::from(std::mem::take(&mut mean_xact_col))),
                             Arc::new(Float64Array::from(std::mem::take(&mut mean_share_col))),
+                            Arc::new(Float64Array::from(std::mem::take(&mut mean_rec_rcvd_col))),
+                            Arc::new(Float64Array::from(std::mem::take(&mut mean_xact_rec_col))),
                         ],
                     )
                     .context("RecordBatch を構築できません")?;
@@ -206,6 +216,8 @@ impl JobManager {
                     msg_col.push(msg_str);
                     mean_xact_col.push(result.mean_num_xact);
                     mean_share_col.push(result.mean_num_share);
+                    mean_rec_rcvd_col.push(result.mean_num_rec_rcvd);
+                    mean_xact_rec_col.push(result.mean_num_xact_rec);
 
                     rows_in_batch += 1;
                     total_rows += 1;
@@ -238,6 +250,10 @@ impl JobManager {
                     Some(env!("CARGO_PKG_VERSION").to_string()),
                 ),
                 KeyValue::new("version".to_string(), Some(version.to_string())),
+                KeyValue::new(
+                    "recommender".to_string(),
+                    Some(format!("{:?}", env.recommender)),
+                ),
             ] {
                 result_writer.append_key_value_metadata(kv);
             }
@@ -280,15 +296,20 @@ impl JobManager {
             for (us_id, user_states) in user_rngs
                 .into_iter()
                 .map(|(irng, erng)| {
-                    Arc::new(self.env.sample_user_states(
+                    let states = self.env.sample_user_states(
                         internal_mean_stimulus,
                         external_mean_stimulus,
                         irng,
                         erng,
-                    ))
+                    );
+                    // ē0 はユーザ状態集合ごとに決まるので、ここで1回だけ計算する。
+                    let rec =
+                        Recommender::new(self.env.recommender, &states, internal_mean_stimulus);
+                    (Arc::new(states), rec)
                 })
                 .enumerate()
             {
+                let (user_states, rec) = user_states;
                 for &ip in &ips {
                     let mut start_index = 0u64;
                     while start_index < num_seqs {
@@ -301,6 +322,7 @@ impl JobManager {
                         let job = JobChunk {
                             env: self.env.clone(),
                             user_states: user_states.clone(),
+                            rec,
                             dm_id: model_id,
                             us_id,
                             ip,
@@ -359,6 +381,8 @@ fn effective_chunk_size(num_seqs: u64, max_chunk_size: usize, num_permits: usize
 struct JobChunk {
     env: Arc<Environment>,
     user_states: Arc<Vec<UserState>>,
+    /// 推薦の設定（推薦なしなら `None`）。
+    rec: Option<Recommender>,
     dm_id: usize,
     us_id: usize,
     ip: usize,
@@ -375,6 +399,8 @@ struct JobResult {
     msg_seq_index: u64,
     mean_num_xact: f64,
     mean_num_share: f64,
+    mean_num_rec_rcvd: f64,
+    mean_num_xact_rec: f64,
 }
 
 impl JobChunk {
@@ -397,6 +423,7 @@ impl JobChunk {
                     &self.user_states,
                     self.ip,
                     &msgs,
+                    self.rec.as_ref(),
                     env.diffusion_sample_size,
                     rng,
                     &mut ws,
@@ -409,6 +436,8 @@ impl JobChunk {
                     msg_seq_index,
                     mean_num_xact: agg.mean_num_xact,
                     mean_num_share: agg.mean_num_share,
+                    mean_num_rec_rcvd: agg.mean_num_rec_rcvd,
+                    mean_num_xact_rec: agg.mean_num_xact_rec,
                 });
             }
             results
